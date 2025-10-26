@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>🌼 Daily Quotes Journal</title>
+  <style>
+
+    body {
+      height: 100%;
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #fef9f9, #f2f2f2);
+      margin: 0; padding: 0;
+      display: flex; flex-direction: column; align-items: center;
+    }
+     body {
+      background-image: url('https://i.pinimg.com/736x/76/a9/52/76a95211d70f50e21eddaae3a1044a3f.jpg'); /* relative path in your project (src/main/resources/static/images/bg.jpg) */
+      background-size: cover;      /* scale to fully cover */
+      background-position: center; /* center the image */
+      background-repeat: no-repeat;
+      background-attachment: fixed; /* optional: keeps it fixed while scrolling */
+      font-family: Arial, sans-serif;
+      color: white;
+    }
+     .content {
+      display: flex;
+      height: 100%;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      backdrop-filter: blur(0px); /* optional */
+    }
+
+    .card {
+      background: rgba(0,0,0,0.45); /* translucent box so text is readable */
+      padding: 24px;
+      border-radius: 12px;
+      max-width: 700px;
+    }
+    h1 {
+     
+      text-align: center;
+       color: #333;
+    }
+    .container {
+      margin-top: 30px;
+      background: #fff;
+      padding: 25px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      width: 80%;
+      max-width: 700px;
+    }
+    input {
+      padding: 8px;
+      margin: 5px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      width: 45%;
+    }
+    button {
+      padding: 8px 15px;
+      border: none;
+      border-radius: 6px;
+      margin: 5px;
+      background: #ffc107;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+    button:hover { background: #ffb300; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    th, td {
+      border-bottom: 1px solid #ddd;
+      padding: 10px;
+      text-align: left;
+    }
+    th { background: #fafafa; }
+    .favorite {
+      color: crimson;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    .fav-true {
+      color: crimson;
+    }
+    .fav-false {
+      color: gray;
+    }
+    .stat {
+      margin: 10px 0;
+      font-weight: bold;
+      color: #555;
+    }
+  </style>
+</head>
+<body>
+  <h1>🌼 Daily Quotes Journal</h1>
+
+  <div class="container">
+    <h2>Add a New Quote</h2>
+    <input id="quoteText" placeholder="Enter quote text">
+    <input id="quoteAuthor" placeholder="Author name">
+    <button onclick="addQuote()">➕ Add Quote</button>
+    <button onclick="showRandomQuote()">🎲 Random Quote</button>
+
+    <div class="stat">
+      Total Quotes: <span id="quoteCount">0</span> |
+      Favorites: <span id="favCount">0</span>
+    </div>
+
+    <h3>All Saved Quotes</h3>
+    <table id="quoteTable" style="color:black;"></table>
+
+    <h3>Quote of the Day</h3>
+    <div id="quoteOfTheDay" style="font-style: italic; margin:10px 0;"></div>
+
+    <h3>🌸 Random Quote</h3>
+    <div id="randomQuote" style="
+     font-style: italic;
+     margin: 10px 0;
+     color: black;
+     background-color: lightcoral;
+     padding: 30px;
+     border-radius: 10px;
+     font-weight: bold;
+     text-align: center;"></div>
+  </div>
+
+  <script>
+const baseUrl = "http://localhost:8081/quotes"; // Backend API for user-added quotes only
+
+// Predefined quotes — used ONLY for Random Quote feature (not added to table or backend)
+const randomQuotes = [
+  { text: "The best way to get started is to quit talking and begin doing.", author: "Walt Disney" },
+  { text: "Don't let yesterday take up too much of today.", author: "Will Rogers" },
+  { text: "It's not whether you get knocked down, it's whether you get up.", author: "Vince Lombardi" },
+  { text: "If you are working on something exciting, it will keep you motivated.", author: "Unknown" },
+  { text: "Success is not in what you have, but who you are.", author: "Bo Bennett" }
+];
+
+// Show ONE random predefined quote in red box
+function showRandomQuote() {
+  const randomIndex = Math.floor(Math.random() * randomQuotes.length);
+  const quote = randomQuotes[randomIndex];
+  document.getElementById("randomQuote").innerHTML = `
+    <div style="margin-bottom:10px;">
+      "${quote.text}" — <b>${quote.author}</b>
+    </div>
+  `;
+}
+
+// Load only user-added quotes from backend into the table
+async function loadQuotes() {
+  try {
+    console.log("Loading quotes from", baseUrl);
+    const res = await fetch(baseUrl);
+    if (!res.ok) {
+      console.error("Failed to load quotes:", res.status, res.statusText);
+      document.getElementById("quoteTable").innerHTML = "<tr><td colspan='5'>Unable to load quotes.</td></tr>";
+      return;
+    }
+
+    const data = await res.json();
+
+    // Remove any predefined randomQuotes from whatever the backend returned
+    const filtered = data.filter(q =>
+      !randomQuotes.some(rq => rq.text === q.text && rq.author === q.author)
+    );
+
+    // Save filtered to window so other functions can access if needed (or compute counts locally)
+    window._userQuotes = filtered;
+
+    const table = document.getElementById("quoteTable");
+    table.innerHTML = "<tr><th>Quote</th><th>Author</th><th>Fav</th><th>Delete</th></tr>";
+
+    if (filtered.length === 0) {
+      table.innerHTML += `<tr><td colspan="5" style="text-align:center; color: #666;">No quotes added yet.</td></tr>`;
+    } else {
+      // Render only filtered (user-added) quotes
+      filtered.forEach(q => {
+        // ensure favorite has a boolean value
+        const fav = !!q.favorite;
+        table.innerHTML += `
+          <tr>
+        
+            <td>"${q.text ?? ''}"</td>
+            <td>${q.author ?? ''}</td>
+            <td style="width:60px; text-align:center;">
+              <button style="border:none; background:transparent; cursor:pointer; font-size:16px;"
+                      onclick="toggleFavorite(${q.id}, ${fav})">
+                <span class="${fav ? 'fav-true' : 'fav-false'}">❤</span>
+              </button>
+            </td>
+            <td style="width:80px; text-align:center;">
+              <button onclick="deleteQuote(${q.id})">🗑️</button>
+            </td>
+          </tr>`;
+      });
+    }
+
+    // Update counts
+    document.getElementById("quoteCount").innerText = filtered.length;
+    const favCount = filtered.filter(q => q.favorite).length;
+    document.getElementById("favCount").innerText = favCount;
+  } catch (err) {
+    console.error("Error loading quotes:", err);
+    document.getElementById("quoteTable").innerHTML = "<tr><td colspan='5'>Error loading quotes (see console)</td></tr>";
+  }
+}
+
+// Add a new quote (user-added)
+async function addQuote() {
+  const text = document.getElementById("quoteText").value.trim();
+  const author = document.getElementById("quoteAuthor").value.trim();
+  if (!text) {
+    alert("Please enter a quote!");
+    return;
+  }
+
+  const payload = { text, author };
+  try {
+    console.log("Adding quote:", payload);
+    const res = await fetch(baseUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+      const body = await res.text();
+      console.error("Failed to add quote:", res.status, res.statusText, body);
+      alert("Failed to add quote — check console");
+      return;
+    }
+
+    document.getElementById("quoteText").value = "";
+    document.getElementById("quoteAuthor").value = "";
+    await loadQuotes();
+  } catch (err) {
+    console.error("Error adding quote:", err);
+    alert("Error adding quote. Check console.");
+  }
+}
+
+// Toggle favorite for quote with id. currentFav is the current boolean value.
+async function toggleFavorite(id) {
+  try {
+    console.log("Toggling favorite for ID:", id);
+
+    const res = await fetch(`${baseUrl}/${id}/favorite`, {
+      method: "PUT"
+    });
+
+    if (!res.ok) {
+      console.error("Failed to toggle favorite:", res.status, res.statusText);
+      alert("Failed to toggle favorite — check console for details.");
+      return;
+    }
+
+    await loadQuotes(); // refresh table after success
+  } catch (err) {
+    console.error("Error toggling favorite:", err);
+    alert("Error toggling favorite — see console.");
+  }
+}
+
+// Delete a quote by id
+async function deleteQuote(id) {
+  if (!confirm("Delete this quote?")) return;
+  try {
+    console.log("Deleting quote", id);
+    const res = await fetch(`${baseUrl}/${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      console.error("Failed to delete:", res.status, res.statusText);
+      alert("Failed to delete quote — check console.");
+      return;
+    }
+    await loadQuotes();
+  } catch (err) {
+    console.error("Error deleting quote:", err);
+    alert("Error deleting quote. See console.");
+  }
+}
+
+// Load only user-added quotes at page start
+window.onload = loadQuotes;
+</script>
+
+
+</body>
+</html>
